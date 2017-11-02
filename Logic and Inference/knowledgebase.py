@@ -155,7 +155,7 @@ class Kb(object):
         bindings_lists = []
         for statement in statements:
             if bindings_lists !=[]:
-                for pair in map(lambda x:(instantiate(statement, x), x), bindings_lists):
+                for pair in map(lambda x:instantiate(statement, x), bindings_lists):
                     for fact in self.facts:
                         bindings = match(Fact(pair[0]), fact)
                         if bindings != False:

@@ -116,9 +116,9 @@ class Kb(object):
                     rule.add_fact(new_statement)
                     self.assert_fact(new_statement)
                 else:
-                    tests = map(lambda x: instantiate(x.statement, bindings), rule.lhs[1:])
+                    lhs_list = map(lambda x: instantiate(x.statement, bindings), rule.lhs[1:])
                     rhs = instantiate(fact.statement, bindings)
-                    new_rule = Rule(tests, rhs, [rule, fact])
+                    new_rule = Rule(lhs_list, rhs, [rule, fact])
                     fact.add_rule(new_rule)
                     rule.add_rule(new_rule)
                     self.assert_rule(new_rule)

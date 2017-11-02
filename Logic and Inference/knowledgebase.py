@@ -1,4 +1,5 @@
 from read import *
+from copy import *
 
 class Fact(object):
     """
@@ -6,10 +7,11 @@ class Fact(object):
         FactSupports: List of facts it supports
         RuleSupports: List of rules it supports
     """
-    def __init__(self, statement = None):
+    def __init__(self, statement = None, supported_by = []):
         self.statement = statement
         self.fact_supports = []
         self.rule_supports = []
+        self.supported_by = supported_by
 
     def add_fact(self, fact):
         self.fact_supports.append(fact)
@@ -24,12 +26,13 @@ class Rule(object):
         FactSupports: List of facts it supports
         RuleSupports: List of rules it supports
     """
-    def __init__(self, lhs, rhs):
+    def __init__(self, lhs, rhs, supported_by = []):
         self.statement = lhs + rhs
         self.lhs = map(lambda x: Fact(x), lhs)
         self.rhs = Fact(rhs)
         self.fact_supports = []
         self.rule_supports = []
+        self.supported_by = supported_by
 
     def add_fact(self, fact):
         self.fact_supports.append(fact)
@@ -79,14 +82,14 @@ class Kb(object):
             bindings = match(rule.lhs[0], fact)
             if bindings != False:
                 if len(rule.lhs) == 1:
-                    new_statement = Fact(instantiate(r.rhs.statement, bindings))
+                    new_statement = Fact(instantiate(r.rhs.statement, bindings), [fact, rule])
                     fact.add_fact(new_statement)
                     rule.add_rule(new_statement)
                     self.assert_fact(new_statement)
                 else:
                     tests = map(lambda x: instantiate(x.statement, bindings), rule.lhs[1:])
                     rhs = instantiate(rule.rhs.statement, bindings)
-                    new_rule = Rule(tests, rhs)
+                    new_rule = Rule(tests, rhs, [fact, rule])
                     fact.add_rule(new_rule)
                     rule.add_rule(new_rule)
                     self.assert_rule(new_rule)
@@ -108,14 +111,14 @@ class Kb(object):
             bindings = match(rule.lhs[0], fact)
             if bindings != False:
                 if len(rule.lhs) == 1:
-                    new_statement = Fact(instantiate(rule.rhs.statement, bindings))
+                    new_statement = Fact(instantiate(rule.rhs.statement, bindings), [rule, fact])
                     fact.add_fact(new_statement)
                     rule.add_fact(new_statement)
                     self.assert_fact(new_statement)
                 else:
                     tests = map(lambda x: instantiate(x.statement, bindings), rule.lhs[1:])
                     rhs = instantiate(fact.statement, bindings)
-                    new_rule = Rule(tests, rhs)
+                    new_rule = Rule(tests, rhs, [rule, fact])
                     fact.add_rule(new_rule)
                     rule.add_rule(new_rule)
                     self.assert_rule(new_rule)
@@ -142,6 +145,64 @@ class Kb(object):
             if bindings != False and not(bindings in bindings_list):
                 bindings_list.append(bindings)
         return bindings_list
+
+    def ask_plus(self, statements):
+        """
+            Input: A list of statements
+            Action: Test to see if the statements are in the Knowledge Base and are consistent with regard to the bindings
+            Returns: A lists of bindings lists based on the matches found
+        """
+        bindings_lists = []
+        for statement in statements:
+            if bindings_lists !=[]:
+                for pair in map(lambda x:(instantiate(statement, x), x), bindings_lists):
+                    for fact in self.facts:
+                        bindings = match(Fact(pair[0]), fact)
+                        if bindings != False:
+                            for key in pair[1]:
+                                bindings[key] = pair[1][key]
+                            if bindings not in bindings_lists:
+                                bindings_lists.append(bindings)
+            else:
+                for fact in self.facts:
+                    bindings = match(Fact(statement), fact)
+                    if bindings != False and bindings not in bindings_lists:
+                        bindings_lists.append(bindings)
+        return bindings_lists
+
+    def why(self, statement):
+        """
+            Input: A statement
+            Action:  Test to see if the statement is in the Knowledge Base
+            For each fact that is true, print out the tree of fact/rule justifications for it
+            Returns: A list of top level facts that matched
+        """
+        facts_visited = set()
+        result = []
+        item = []
+        for fact in self.facts:
+            if fact.statement == statement:
+                facts_visited.add(fact)
+                self.why_helper(facts_visited, fact, item, result)
+        return result
+
+
+    def why_helper(self, facts_visited, cur_fact_or_rule, item, result):
+        """
+            Use dfs as helper function of why
+        """
+        for fact_or_rule in cur_fact_or_rule.supported_by:
+            if fact_or_rule not in facts_visited:
+                facts_visited.add(fact_or_rule)
+                item.append(fact_or_rule)
+                self.why_helper(facts_visited, fact_or_rule, item, result)
+                item.pop()
+                facts_visited.remove(fact_or_rule)
+
+
+        if len(item) > 0:
+            result.append(deepcopy(item))
+
 
 def varq(item):
     """
@@ -202,23 +263,31 @@ if __name__ == "__main__":
     kb = Kb(tokenized_facts, tokenized_rules)
     kb.printing()
     print
+    print "******************************** Test Ask ********************************"
     ask_statement = ['color','pyramid1','?x']
     bindings_list = kb.ask(ask_statement)
     print "Ask:", ask_statement
     print "Bindings list:", bindings_list
-    print
-    ask_statement = ['size','littlebox','?x']
-    bindings_list = kb.ask(ask_statement)
-    print "Ask:", ask_statement
-    print "Bindings list:", bindings_list
-    print
-    ask_statement = ['color','?x','green']
-    bindings_list = kb.ask(ask_statement)
-    print "Ask:", ask_statement
-    print "Bindings list:", bindings_list
 
+    print
+    print "******************************** Test Ask+ ********************************"
+    ask_plus_statements = [['inst', '?x', 'pyramid'],['color', '?x', 'green']]
+    bindings_lists = kb.ask_plus(ask_plus_statements)
+    print "Ask+:", ask_plus_statements
+    print "Bindings lists:", bindings_lists
+
+    print
+    print "******************************** Test Retract ********************************"
     retract_statement = ['isa','cube','block']
     kb.retract(retract_statement)
-    print
     print "After retracting", retract_statement
     kb.printing()
+
+    print
+    print "******************************** Test Why ********************************"
+    why_statement = ['flat', 'cube4']
+    print "Why?", why_statement
+    result = kb.why(why_statement)
+    for facts in result:
+        for fact in facts:
+            print fact.statement
